@@ -11,6 +11,8 @@ temperature_counter = 0
 
 # Countries
 
+
+
 @app.route("/api/countries", methods=["POST"])
 def post_countries():
     global countries_list, country_counter
