@@ -8,6 +8,7 @@ cities_list = [] # debuging for now
 cities_counter = 0
 temperature_list = [] # debuging for now
 temperature_counter = 0
+
 # Countries
 
 @app.route("/api/countries", methods=["POST"])
@@ -16,9 +17,8 @@ def post_countries():
     data = request.get_json()
     if data:
         if data["name"]:
-            new_country = {"id" : country_counter, "name" : data["name"]}
-            countries_list.append(new_country)
-            country_counter = country_counter + 1
+            if data["lat"] and data["long"]:
+                
             return Response(status=201, response=new_country["id"])
         else:
             return Response(status=400)
