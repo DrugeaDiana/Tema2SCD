@@ -1,31 +1,5 @@
-@app.route("/api/countries/<int:id>", methods=["PUT"])
-def put_country(id):
-    global countries_list
-    data = request.get_json()
-    if data:
-        if data["name"]:
-            found = 0
-            for country in countries_list:
-                if country["id"] == id:
-                    country["name"] = data["name"]
-                    found = 1
-            if found == 0:
-                return Response(status= 404)
-        else:
-            return Response(status = 400)
-    else:
-        return Response(status= 400)
-    return Response(status = 200)
 
-@app.route("/api/countries/<int:id>", methods=["DELETE"])
-def delete_country(id):
-    global countries_list
-    # 400 -> nu da datele bune
-    for country in countries_list:
-        if country["id"] == id:
-            countries_list.remove(country)
-            return Response(status= 200)
-    return Response(status= 404)
+
 
 # Cities
 @app.route("/api/cities", methods=["POST"])
