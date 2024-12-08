@@ -12,10 +12,25 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
+      #POSTGRES_DB: SCD_db
     volumes:
-      - pgdata2:/var/lib/postgresql/data
+      #- pgdata2:/var/lib/postgresql/data
       - ./db/database.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - pgnetwork
+      - api_network
 
+  api_server:
+    container_name: rest_server
+    build: ./src
+    restart: always
+    image: rest_server
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    networks:
+      - api_network
 
   pgadmin:
     image: dpage/pgadmin4
@@ -26,13 +41,16 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
-    volumes:
-      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - pgnetwork
+
 
 networks:
   pgnetwork:
     driver: bridge
+  api_network:
+    driver: bridge
 
-volumes:
-  pgdata2:
-  pgadmin-data:
+#volumes:
+  #pgdata2:
+  #pgadmin-data:
