@@ -40,11 +40,6 @@ def post_countries():
         return Response(status=400)
 
     new_country = {"name" : data["nume"], "lat" : data["lat"], "long" : data["lon"]}
-    
-    # Verificam daca tara deja exista in db
-    db_cursor.execute("SELECT * FROM TARI WHERE nume_tara = %s", (new_country["name"],))
-    if db_cursor.fetchone():
-        return Response(status=409)
 
     # Verificam in cazul in care exista deja cheia in db
     try:
@@ -72,18 +67,24 @@ def put_country(id):
     data = request.get_json()
     if not data:
         return Response(status=400)
-    if {"nume", "lat", "lon"} != data.keys():
+    if {"id", "nume", "lat", "lon"} != data.keys():
         return Response(status=400)
     if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float))):
+        return Response(status=400)
+    if id != data["id"]:
         return Response(status=400)
     
     query = "SELECT * FROM TARI WHERE id_tara = CAST(%s as INT)" % id
     db_cursor.execute(query)
     response = db_cursor.fetchone()
     if response:
-        db_cursor.execute("UPDATE TARI SET nume_tara = %s, latitudine = %s, longitudine = %s WHERE id_tara = %s", (data["nume"], data["lat"], data["lon"], id))
-        db_cursor.execute("COMMIT")
-        return Response(status=200)
+        try:
+            db_cursor.execute("UPDATE TARI SET nume_tara = %s, latitudine = %s, longitudine = %s WHERE id_tara = %s", (data["nume"], data["lat"], data["lon"], id))
+            db_cursor.execute("COMMIT")
+            return Response(status=200)
+        except:
+            db_conn.rollback()
+            return Response(status=409)
     else:
         return Response(status=404)
  
@@ -129,7 +130,7 @@ def post_cities():
         return Response(status=400)
     if {"idTara","nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if data["nume"] == "" or data["nume"] is None or data["lat"] == "" or data["lat"] is None or data["lon"] == "" or data["lon"] is None or data["idTara"] == "" or data["idTara"] is None:
+    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float)) and (isinstance(data["idTara"], int))):
         return Response(status=400)
 
     # Verificam daca tara deja exista in db
@@ -146,7 +147,7 @@ def post_cities():
         return Response(status=409)
 
     # Selectam id-ul tarii adaugate
-    db_cursor.execute("SELECT id_tara FROM ORASE WHERE nume_oras = %s", (data["nume"],))
+    db_cursor.execute("SELECT id_oras FROM ORASE WHERE nume_oras = %s", (data["nume"],))
     response = {"id": db_cursor.fetchone()[0]}
     return jsonify(response), 201
     
@@ -172,7 +173,8 @@ def put_city(id):
         return Response(status=400)
     if {"id", "idTara","nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if data["nume"] == "" or data["nume"] is None or data["lat"] == "" or data["lat"] is None or data["lon"] == "" or data["lon"] is None or data["idTara"] == "" or data["idTara"] is None:
+    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and
+            (isinstance(data["lon"], float)) and (isinstance(data["idTara"], int)) and (isinstance(data["id"], int))):
         return Response(status=400)
     if id != data["id"]:
         return Response(status=400)
