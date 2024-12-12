@@ -50,7 +50,7 @@ def post_countries():
         return Response(status=409)
 
     # Selectam id-ul tarii adaugate
-    db_cursor.execute("SELECT id_tara FROM TARI WHERE nume_tara = %s", (new_country["name"],))
+    db_cursor.execute("SELECT id FROM TARI WHERE nume_tara = %s", (new_country["name"],))
     response = {"id": db_cursor.fetchone()[0]}
     return jsonify(response), 201
 
@@ -69,12 +69,13 @@ def put_country(id):
         return Response(status=400)
     if {"id", "nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float))):
+    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and
+            (isinstance(data["lon"], float)) and (isinstance(data["id"], int))):
         return Response(status=400)
     if id != data["id"]:
         return Response(status=400)
     
-    query = "SELECT * FROM TARI WHERE id_tara = CAST(%s as INT)" % id
+    query = "SELECT * FROM TARI WHERE id = CAST(%s as INT)" % id
     db_cursor.execute(query)
     response = db_cursor.fetchone()
     if response:
@@ -93,11 +94,11 @@ def put_country(id):
 def delete_country(id):
     global db_cursor
 
-    query = "SELECT * FROM TARI WHERE id_tara = CAST(%s as INT)" % id
+    query = "SELECT * FROM TARI WHERE id = CAST(%s as INT)" % id
     db_cursor.execute(query)
     response = db_cursor.fetchone()
     if response:
-        db_cursor.execute("DELETE FROM TARI WHERE id_tara = %s", (id,))
+        db_cursor.execute("DELETE FROM TARI WHERE id = %s", (id,))
         db_cursor.execute("COMMIT")
         return Response(status=200)
     else:
@@ -133,11 +134,6 @@ def post_cities():
     if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float)) and (isinstance(data["idTara"], int))):
         return Response(status=400)
 
-    # Verificam daca tara deja exista in db
-    db_cursor.execute("SELECT * FROM ORASE WHERE nume_oras = %s", (data["nume"],))
-    if db_cursor.fetchone():
-        return Response(status=409)
-
     # Verificam in cazul in care exista deja cheia in db
     try:
         db_cursor.execute("INSERT INTO ORASE (id_tara, nume_oras, latitudine, longitudine) VALUES (%s, %s, %s, %s)", (data["idTara"], data["nume"], data["lat"], data["lon"]))
@@ -147,7 +143,7 @@ def post_cities():
         return Response(status=409)
 
     # Selectam id-ul tarii adaugate
-    db_cursor.execute("SELECT id_oras FROM ORASE WHERE nume_oras = %s", (data["nume"],))
+    db_cursor.execute("SELECT id FROM ORASE WHERE nume_oras = %s", (data["nume"],))
     response = {"id": db_cursor.fetchone()[0]}
     return jsonify(response), 201
     
@@ -179,12 +175,12 @@ def put_city(id):
     if id != data["id"]:
         return Response(status=400)
     
-    query = "SELECT * FROM ORASE WHERE id_oras = CAST(%s as INT)" % id
+    query = "SELECT * FROM ORASE WHERE id = CAST(%s as INT)" % id
     db_cursor.execute(query)
     response = db_cursor.fetchone()
     if response:
         try:
-            db_cursor.execute("UPDATE ORASE SET id_tara = %s, nume_oras = %s, latitudine = %s, longitudine = %s WHERE id_oras = %s", (data["idTara"], data["nume"], data["lat"], data["lon"], id))
+            db_cursor.execute("UPDATE ORASE SET id_tara = %s, nume_oras = %s, latitudine = %s, longitudine = %s WHERE id= %s", (data["idTara"], data["nume"], data["lat"], data["lon"], id))
             db_cursor.execute("COMMIT")
             return Response(status=200)
         except:
@@ -197,18 +193,97 @@ def put_city(id):
 @app.route("/api/cities/<int:id>", methods=["DELETE"])
 def delete_city(id):
     global db_cursor
-    query = "SELECT * FROM ORASE WHERE id_oras = CAST(%s as INT)" % id
+    query = "SELECT * FROM ORASE WHERE id = CAST(%s as INT)" % id
     db_cursor.execute(query)
     response = db_cursor.fetchone()
     if response:
-        db_cursor.execute("DELETE FROM ORASE WHERE id_oras = %s", (id,))
+        db_cursor.execute("DELETE FROM ORASE WHERE id = %s", (id,))
         db_cursor.execute("COMMIT")
         return Response(status=200)
     else:
         return Response(status=404)
 
+# Temperature
 
+def record_into_json_temperature():
+    global db_cursor
+    rows = db_cursor.fetchall()
+    records = []
+
+    for row in rows:
+        record = {}
+        record["id"] = row[0]
+        record["idOras"] = row[1]
+        record["timp"] = row[2]
+        record["valoare"] = row[3]
+        records.append(record)
+
+    return records
+
+@app.route("/api/temperatures", methods=["POST"])
+def post_temperature():
+    global db_cursor
+    data = request.get_json()
+    if not data:
+        return Response(status=400)
+    if {"idOras","valoare"} != data.keys():
+        return Response(status=400)
+    if not ((isinstance(data["idOras"], int)) and (isinstance(data["valoare"], float))):
+        return Response(status=400)
+
+    # Verificam in cazul in care exista deja cheia in db
+    try:
+        db_cursor.execute("INSERT INTO TEMPERATURI (id_oras, valoare) VALUES (%s, %s)", (data["idOras"], data["valoare"]))
+        db_cursor.execute("COMMIT")
+    except:
+        db_conn.rollback()
+        return Response(status=409)
+
+    # Selectam id-ul tarii adaugate
+    db_cursor.execute("SELECT MAX(id) FROM Temperaturi;")
+    response = {"id": db_cursor.fetchone()[0]}
+    return jsonify(response), 201
+
+@app.route("/api/temperatures/<int:id>", methods=["PUT"])
+def put_temp(id):
+    global db_cursor
+
+    data = request.get_json()
+    if not data:
+        return Response(status=400)
+    if {"id", "idOras","valoare"} != data.keys():
+        return Response(status=400)
+    if not ((isinstance(data["valoare"], float)) and (isinstance(data["idOras"], int)) and (isinstance(data["id"], int))):
+        return Response(status=400)
+    if id != data["id"]:
+        return Response(status=400)
     
+    query = "SELECT * FROM TEMPERATURI WHERE id = CAST(%s as INT)" % id
+    db_cursor.execute(query)
+    response = db_cursor.fetchone()
+    if response:
+        try:
+            db_cursor.execute("UPDATE TEMPERATURI SET id_oras = %s, valoare = %s WHERE id = %s", (data["idOras"], data["valoare"], id))
+            db_cursor.execute("COMMIT")
+            return Response(status=200)
+        except:
+            db_conn.rollback()
+            return Response(status=409)
+    else:
+        return Response(status=404)
+
+@app.route("/api/temperatures/<int:id>", methods=["DELETE"])
+def delete_temp(id):
+    global db_cursor
+    query = "SELECT * FROM TEMPERATURI WHERE id = CAST(%s as INT)" % id
+    db_cursor.execute(query)
+    response = db_cursor.fetchone()
+    if response:
+        db_cursor.execute("DELETE FROM TEMPERATURI WHERE id = %s", (id,))
+        db_cursor.execute("COMMIT")
+        return Response(status=200)
+    else:
+        return Response(status=404)
 
 if __name__ == "__main__":
     app.run('0.0.0.0', debug=True)
