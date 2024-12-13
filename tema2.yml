@@ -1,5 +1,4 @@
 services:
-
   db:
     image: postgres
     container_name: local_pgdb
@@ -9,9 +8,10 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
-      #POSTGRES_DB: SCD_db
+    env_file:
+      - vars.env
     volumes:
-      #- pgdata2:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql/data
       - ./db/database.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - pgnetwork
@@ -28,6 +28,11 @@ services:
       - db
     networks:
       - api_network
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    env_file:
+      - vars.env
 
   pgadmin:
     image: dpage/pgadmin4
@@ -48,6 +53,5 @@ networks:
   api_network:
     driver: bridge
 
-#volumes:
-  #pgdata2:
-  #pgadmin-data:
+volumes:
+  pg_data:

@@ -1,19 +1,23 @@
 from flask import Flask, Response, jsonify, request
 import psycopg2
+import os
 
 app = Flask(__name__)
 
-hostname = "db"
-port = 5432
-db_name = "user"
-username = "user"
-password = "pass"
+# Variabilele pentru conectarea la baza de date
+hostname = os.getenv("POSTGRES_HOST", "db")
+port = os.getenv("POSTGRES_PORT", 5432)
+db_name = os.getenv("POSTGRES_DB", "scd")
+username = os.getenv("POSTGRES_USER", "user")
+password = os.getenv("POSTGRES_PASSWORD", "password")
 
+# Conectarea la baza de date
 db_conn = psycopg2.connect(host=hostname, port=port, dbname=db_name, user=username, password=password)
 db_cursor = db_conn.cursor()
 
 # Countries
 
+# Transforma datele colectate de Select-ul din db in formatul JSON pentru tari
 def record_into_json_country():
     global db_cursor
     rows = db_cursor.fetchall()
@@ -29,8 +33,9 @@ def record_into_json_country():
 
 @app.route("/api/countries", methods=["POST"])
 def post_countries():
-    global country_counter, db_cursor, country_keys, country_types
+    global db_cursor
 
+    # Verificam daca datele trimise sunt corecte
     data = request.get_json()
     if not data:
         return Response(status=400)
@@ -41,7 +46,7 @@ def post_countries():
 
     new_country = {"name" : data["nume"], "lat" : data["lat"], "long" : data["lon"]}
 
-    # Verificam in cazul in care exista deja cheia in db
+    # 
     try:
         db_cursor.execute("INSERT INTO TARI (nume_tara, latitudine, longitudine) VALUES (%s, %s, %s)", (new_country["name"], new_country["lat"], new_country["long"]))
         db_cursor.execute("COMMIT")
@@ -205,7 +210,7 @@ def delete_city(id):
 
 # Temperature
 
-def record_into_json_temperature():
+def record_into_json_temperature(date):
     global db_cursor
     rows = db_cursor.fetchall()
     records = []
@@ -215,7 +220,8 @@ def record_into_json_temperature():
         record["id"] = row[0]
         #record["idOras"] = row[1]
         record["valoare"] = row[2]
-        #record["timp"] = row[3]
+        if date == 1:
+            record["timestamp"] = row[3]
         records.append(record)
 
     return records
@@ -300,51 +306,117 @@ def get_temperatures():
                 WHERE o.latitudine = %s AND o.longitudine = %s\
                     and t.timestamp BETWEEN TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD') AND TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (lat, lon, from_date, until_date)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif lat and lon:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t\
                     INNER JOIN ORASE o ON t.id_oras = o.id\
                 WHERE o.latitudine = %s AND o.longitudine = %s" % (lat, lon)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif from_date and until_date:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t \
                 WHERE t.timestamp BETWEEN TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD') AND TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (from_date, until_date)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif lat:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t\
                     INNER JOIN ORASE o ON t.id_oras = o.id\
                 WHERE o.latitudine = %s " % lat
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif lon:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t\
                     INNER JOIN ORASE o ON t.id_oras = o.id\
                 WHERE o.longitudine = %s" % (lon)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif from_date:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t\
                 WHERE t.timestamp >= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (from_date)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     elif until_date:
         query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
                 FROM TEMPERATURI t\
                 WHERE t.timestamp <= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (until_date)
         db_cursor.execute(query)
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
     else:
         db_cursor.execute("SELECT * FROM TEMPERATURI")
-        return jsonify(record_into_json_temperature()), 200
+        return jsonify(record_into_json_temperature(0)), 200
 
+@app.route("/api/temperatures/cities/<int:id>", methods=["GET"])
+def get_temperatures_city(id):
+    global db_cursor
+    from_date = request.args.get("from", type=str)
+    until_date = request.args.get("until", type=str)
 
+    if from_date and until_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                WHERE t.id_oras = %s AND t.timestamp BETWEEN TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD') \
+                    AND TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, from_date, until_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    elif from_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                WHERE t.id_oras = %s AND t.timestamp >= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, from_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    elif until_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                WHERE t.id_oras = %s AND t.timestamp <= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, until_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    else:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                WHERE t.id_oras = %s" % id
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    
+@app.route("/api/temperatures/countries/<int:id>", methods=["GET"])
+def get_temperature_country(id):
+    global db_cursor
+    from_date = request.args.get("from", type=str)
+    until_date = request.args.get("until", type=str)
+
+    if from_date and until_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                    INNER JOIN ORASE o ON t.id_oras = o.id\
+                WHERE o.id_tara = %s AND t.timestamp BETWEEN TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD') \
+                    AND TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, from_date, until_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    elif from_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                    INNER JOIN ORASE o ON t.id_oras = o.id\
+                WHERE o.id_tara = %s AND t.timestamp >= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, from_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    elif until_date:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                    INNER JOIN ORASE o ON t.id_oras = o.id\
+                WHERE o.id_tara = %s AND t.timestamp <= TO_DATE(CAST(%s AS varchar), 'YYYY-MM-DD')" % (id, until_date)
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
+    else:
+        query = "SELECT t.id, t.id_oras, t.valoare, TO_CHAR(t.timestamp, 'YYYY-MM-DD') \
+                FROM TEMPERATURI t \
+                    INNER JOIN ORASE o ON t.id_oras = o.id\
+                WHERE o.id_tara = %s" % id
+        db_cursor.execute(query)
+        return jsonify(record_into_json_temperature(1)), 200
 
 if __name__ == "__main__":
     app.run('0.0.0.0', debug=True)
