@@ -52,7 +52,9 @@ def post_countries():
         return Response(status=400)
     if {"nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float))):
+    if not ((isinstance(data["nume"], str)) and 
+            ((isinstance(data["lat"], float)) or (isinstance(data["lat"], int))) and
+            ((isinstance(data["lon"], float)) or (isinstance(data["lon"], int)))):
         return Response(status=400)
 
     # Try-catch pentru a verifica daca exista deja tara in db
@@ -86,8 +88,10 @@ def put_country(id):
         return Response(status=400)
     if {"id", "nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and
-            (isinstance(data["lon"], float)) and (isinstance(data["id"], int))):
+    if not ((isinstance(data["nume"], str)) and 
+            ((isinstance(data["lat"], float)) or (isinstance(data["lat"], int))) and
+            ((isinstance(data["lon"], float)) or (isinstance(data["lon"], int))) and
+            (isinstance(data["id"], int))):
         return Response(status=400)
     if id != data["id"]:
         return Response(status=400)
@@ -102,7 +106,7 @@ def put_country(id):
     if response:
         try:
             db_cursor.execute("UPDATE TARI SET nume_tara = %s, latitudine = %s, longitudine = %s \
-                              WHERE id_tara = %s", (data["nume"], data["lat"], data["lon"], id))
+                              WHERE id = %s", (data["nume"], data["lat"], data["lon"], id))
             db_cursor.execute("COMMIT")
             return Response(status=200)
         except:
@@ -123,9 +127,13 @@ def delete_country(id):
 
     # Daca exista, stergem intrarea. Daca nu, trimitem 404
     if response:
-        db_cursor.execute("DELETE FROM TARI WHERE id = %s", (id,))
-        db_cursor.execute("COMMIT")
-        return Response(status=200)
+        try:
+            db_cursor.execute("DELETE FROM TARI WHERE id = %s", (id,))
+            db_cursor.execute("COMMIT")
+            return Response(status=200)
+        except:
+            db_conn.rollback()
+            return Response(status=400)
     else:
         return Response(status=404)
 
@@ -163,16 +171,22 @@ def post_cities():
         return Response(status=400)
     if {"idTara","nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and (isinstance(data["lon"], float)) and (isinstance(data["idTara"], int))):
+    if not ((isinstance(data["nume"], str)) and 
+            ((isinstance(data["lat"], float)) or (isinstance(data["lat"], int))) and
+            ((isinstance(data["lon"], float)) or (isinstance(data["lon"], int))) and
+            (isinstance(data["idTara"], int))):
         return Response(status=400)
 
     # Verificam in cazul in care exista deja cheia in db
     try:
         db_cursor.execute("INSERT INTO ORASE (id_tara, nume_oras, latitudine, longitudine) VALUES (%s, %s, %s, %s)", (data["idTara"], data["nume"], data["lat"], data["lon"]))
         db_cursor.execute("COMMIT")
-    except:
+    except psycopg2.errors.UniqueViolation:
         db_conn.rollback()
         return Response(status=409)
+    except psycopg2.errors.ForeignKeyViolation:
+        db_conn.rollback()
+        return Response(status=404)
 
     # Selectam id-ul orasului adaugat
     db_cursor.execute("SELECT id FROM ORASE WHERE nume_oras = %s", (data["nume"],))
@@ -205,8 +219,10 @@ def put_city(id):
         return Response(status=400)
     if {"id", "idTara","nume", "lat", "lon"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["nume"], str)) and (isinstance(data["lat"], float)) and
-            (isinstance(data["lon"], float)) and (isinstance(data["idTara"], int)) and (isinstance(data["id"], int))):
+    if not ((isinstance(data["nume"], str)) and 
+            ((isinstance(data["lat"], float)) or (isinstance(data["lat"], int))) and
+            ((isinstance(data["lon"], float)) or (isinstance(data["lon"], int))) and
+            (isinstance(data["idTara"], int)) and (isinstance(data["id"], int))):
         return Response(status=400)
     if id != data["id"]:
         return Response(status=400)
@@ -223,9 +239,12 @@ def put_city(id):
             db_cursor.execute("UPDATE ORASE SET id_tara = %s, nume_oras = %s, latitudine = %s, longitudine = %s WHERE id= %s", (data["idTara"], data["nume"], data["lat"], data["lon"], id))
             db_cursor.execute("COMMIT")
             return Response(status=200)
-        except:
+        except psycopg2.errors.UniqueViolation:
             db_conn.rollback()
             return Response(status=409)
+        except psycopg2.errors.ForeignKeyViolation:
+            db_conn.rollback()
+            return Response(status=404)
     else:
         return Response(status=404)
     
@@ -241,9 +260,13 @@ def delete_city(id):
 
     # Daca exista, stergem intrarea. Daca nu, trimitem 404
     if response:
-        db_cursor.execute("DELETE FROM ORASE WHERE id = %s", (id,))
-        db_cursor.execute("COMMIT")
-        return Response(status=200)
+        try:
+            db_cursor.execute("DELETE FROM ORASE WHERE id = %s", (id,))
+            db_cursor.execute("COMMIT")
+            return Response(status=200)
+        except:
+            db_conn.rollback()
+            return Response(status=400)
     else:
         return Response(status=404)
 
@@ -282,16 +305,20 @@ def post_temperature():
         return Response(status=400)
     if {"idOras","valoare"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["idOras"], int)) and (isinstance(data["valoare"], float))):
+    if not ((isinstance(data["idOras"], int)) and
+            ((isinstance(data["valoare"], float)) or (isinstance(data["valoare"], int)))):
         return Response(status=400)
 
     # Verificam in cazul in care exista deja cheia in db
     try:
         db_cursor.execute("INSERT INTO TEMPERATURI (id_oras, valoare) VALUES (%s, %s)", (data["idOras"], data["valoare"]))
         db_cursor.execute("COMMIT")
-    except:
+    except psycopg2.errors.UniqueViolation:
         db_conn.rollback()
         return Response(status=409)
+    except psycopg2.errors.ForeignKeyViolation:
+        db_conn.rollback()
+        return Response(status=404)
 
     # Selectam id-ul temperaturii adaugate
     db_cursor.execute("SELECT MAX(id) FROM Temperaturi;")
@@ -309,7 +336,8 @@ def put_temp(id):
         return Response(status=400)
     if {"id", "idOras","valoare"} != data.keys():
         return Response(status=400)
-    if not ((isinstance(data["valoare"], float)) and (isinstance(data["idOras"], int)) and (isinstance(data["id"], int))):
+    if not (((isinstance(data["valoare"], float)) or (isinstance(data["valoare"], int)))
+            and (isinstance(data["idOras"], int)) and (isinstance(data["id"], int))):
         return Response(status=400)
     if id != data["id"]:
         return Response(status=400)
@@ -326,9 +354,12 @@ def put_temp(id):
             db_cursor.execute("UPDATE TEMPERATURI SET id_oras = %s, valoare = %s WHERE id = %s", (data["idOras"], data["valoare"], id))
             db_cursor.execute("COMMIT")
             return Response(status=200)
-        except:
+        except psycopg2.errors.UniqueViolation:
             db_conn.rollback()
             return Response(status=409)
+        except psycopg2.errors.ForeignKeyViolation:
+            db_conn.rollback()
+            return Response(status=404)
     else:
         return Response(status=404)
 
@@ -344,9 +375,13 @@ def delete_temp(id):
     # Daca exista, stergem intrarea. Daca nu, trimitem 404
     response = db_cursor.fetchone()
     if response:
-        db_cursor.execute("DELETE FROM TEMPERATURI WHERE id = %s", (id,))
-        db_cursor.execute("COMMIT")
-        return Response(status=200)
+        try:
+            db_cursor.execute("DELETE FROM TEMPERATURI WHERE id = %s", (id,))
+            db_cursor.execute("COMMIT")
+            return Response(status=200)
+        except:
+            db_conn.rollback()
+            return Response(status=400)
     else:
         return Response(status=404)
 
