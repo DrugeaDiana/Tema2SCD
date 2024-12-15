@@ -45,6 +45,8 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
     networks:
       - pgnetwork
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
 
 networks:
@@ -55,3 +57,4 @@ networks:
 
 volumes:
   pg_data:
+  pgadmin_data:
